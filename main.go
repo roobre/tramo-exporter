@@ -21,19 +21,32 @@ func main() {
 func periodHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("content-type", "text/plain")
 
+	p := periodAt(time.Now())
+
 	fmt.Fprintln(rw, "# HELP The current period.")
 	fmt.Fprintln(rw, "# TYPE period gauge")
+	fmt.Fprintf(rw, "period{name=\"valley\"} %d\n", p.GaugeEquals(periodValley))
+	fmt.Fprintf(rw, "period{name=\"plain\"} %d\n", p.GaugeEquals(periodPlain))
+	fmt.Fprintf(rw, "period{name=\"peak\"} %d\n", p.GaugeEquals(periodPeak))
 
-	t := periodAt(time.Now())
-	fmt.Fprintf(rw, "period{name=\"valley\"} %d\n", asInt(t == periodValley))
-	fmt.Fprintf(rw, "period{name=\"plain\"} %d\n", asInt(t == periodPlain))
-	fmt.Fprintf(rw, "period{name=\"peak\"} %d\n", asInt(t == periodPeak))
+	fmt.Fprintln(rw, "# HELP The current period as a number.")
+	fmt.Fprintln(rw, "# TYPE period_value gauge")
+	fmt.Fprintf(rw, "period_value %d\n", p)
 }
 
 type period int
 
+func (p period) GaugeEquals(other period) int {
+	if p == other {
+		return 1
+	}
+
+	return 0
+}
+
 const (
-	periodValley = iota
+	_ = iota
+	periodValley
 	periodPlain
 	periodPeak
 )
@@ -58,12 +71,4 @@ func periodAt(t time.Time) period {
 	default:
 		panic("unreachable hour")
 	}
-}
-
-func asInt(b bool) int {
-	if b {
-		return 1
-	}
-
-	return 0
 }
