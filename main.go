@@ -8,30 +8,42 @@ import (
 	"time"
 )
 
+const defaultTariffLocation = "Europe/Madrid"
+
 func main() {
 	addr := flag.String("addr", ":8080", "Address to listen at")
+	location := flag.String("tariff-location", defaultTariffLocation, "Location for the tariff where the timezone is")
 	flag.Parse()
 
 	log.Printf("Starting HTTP server in %s", *addr)
-	if err := http.ListenAndServe(*addr, http.HandlerFunc(periodHandler)); err != nil {
+	if err := http.ListenAndServe(*addr, http.HandlerFunc(periodHandler(*location))); err != nil {
 		log.Fatalf("Cannot start http server: %v", err)
 	}
 }
 
-func periodHandler(rw http.ResponseWriter, r *http.Request) {
-	rw.Header().Set("content-type", "text/plain")
+func periodHandler(locationStr string) func(rw http.ResponseWriter, r *http.Request) {
+	location, err := time.LoadLocation(locationStr)
+	if err != nil {
+		log.Fatalf("Error loading timezone: %v", err)
+	}
 
-	p := periodAt(time.Now())
+	log.Printf("Using timezone %s", location)
 
-	fmt.Fprintln(rw, "# HELP The current period.")
-	fmt.Fprintln(rw, "# TYPE period gauge")
-	fmt.Fprintf(rw, "period{name=\"valley\"} %d\n", p.GaugeEquals(periodValley))
-	fmt.Fprintf(rw, "period{name=\"plain\"} %d\n", p.GaugeEquals(periodPlain))
-	fmt.Fprintf(rw, "period{name=\"peak\"} %d\n", p.GaugeEquals(periodPeak))
+	return func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("content-type", "text/plain")
 
-	fmt.Fprintln(rw, "# HELP The current period as a number.")
-	fmt.Fprintln(rw, "# TYPE period_value gauge")
-	fmt.Fprintf(rw, "period_value %d\n", p)
+		p := periodAt(time.Now().In(location))
+
+		fmt.Fprintln(rw, "# HELP The current period.")
+		fmt.Fprintln(rw, "# TYPE period gauge")
+		fmt.Fprintf(rw, "period{name=\"valley\"} %d\n", p.GaugeEquals(periodValley))
+		fmt.Fprintf(rw, "period{name=\"plain\"} %d\n", p.GaugeEquals(periodPlain))
+		fmt.Fprintf(rw, "period{name=\"peak\"} %d\n", p.GaugeEquals(periodPeak))
+
+		fmt.Fprintln(rw, "# HELP The current period as a number.")
+		fmt.Fprintln(rw, "# TYPE period_value gauge")
+		fmt.Fprintf(rw, "period_value %d\n", p)
+	}
 }
 
 type period int
